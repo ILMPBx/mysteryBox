@@ -1,0 +1,26 @@
+#######################################
+# Syntax Coloring Map SpeechSynthesis
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+SpeechSynthesis	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+mvm KEYWORD2
+Speaking KEYWORD2
+king KEYWORD2
+kxing KEYWORD2
+at KEYWORD2
+att KEYWORD2
+mking KEYWORD2
+Chinese_english KEYWORD2
+English KEYWORD2
+buf_init KEYWORD2
+Em_init KEYWORD2
+Espeaking KEYWORD2

@@ -1,0 +1,222 @@
+
+#include <SpeechSynthesis.h> // Include the speech synth module library
+
+#define DEBOUNCE_CLEAR      0x00
+#define DEBOUNCE_START      0x01
+#define DEBOUNCE_COMPLETE   0x80
+
+#define LOOP_DELAY_MS       30
+#define LED_DELAY_MS        250
+#define COUNTDOWN_DELAY_MS  1000
+
+#define SYNTH_SBUF_SIZE     512
+
+#define SYNTH_SEL_VOLUME    "9"
+#define SYNTH_SEL_SPEED     "3"
+
+#define SYNTH_CMD_VOLUME    4
+#define SYNTH_CMD_SPEED     2
+#define SYNTH_CMD_MUTE      1
+#define SYNTH_CMD_ENGLISH   6
+#define SYNTH_CMD_DEFAULT   5
+
+#define SYNTH_ECMD_START    0
+#define SYNTH_ECMD_STOP     1
+#define SYNTH_ECMD_PAUSE    2
+#define SYNTH_ECMD_RESUME   3
+#define SYNTH_ECMD_CHKSTAT  4
+
+#define SYNTH_TYPE_XPD      4
+#define SYNTH_TYPE_SPELL    6
+#define SYNTH_TYPE_SAY      7
+
+#define SYNTH_VOICE_MALE1   0
+#define SYNTH_VOICE_MALE2   1
+#define SYNTH_VOICE_FEMALE1 2
+#define SYNTH_VOICE_DUCK    3
+#define SYNTH_VOICE_FEMALE2 4
+#define SYNTH_VOICE_FEMALE3 5
+#define SYNTH_VOICE_MALE3   6
+#define SYNTH_VOICE_FEMALE4 7
+#define SYNTH_VOICE_FEMALE5 8
+#define SYNTH_VOICE_CD1     9
+#define SYNTH_VOICE_CD2     10
+#define SYNTH_VOICE_CD3     11
+#define SYNTH_VOICE_CD4     12
+#define SYNTH_VOICE_CD5     13
+#define SYNTH_VOICE_CD6     14
+#define SYNTH_VOICE_CD7     15
+#define SYNTH_VOICE_CD8     16
+#define SYNTH_VOICE_MALE4   17
+#define SYNTH_VOICE_FEMALE6 18
+#define SYNTH_VOICE_FEMALE8 19
+
+#define PHRASE_0            "zero"
+#define PHRASE_1            "one"
+#define PHRASE_2            "two"
+#define PHRASE_3            "three"
+#define PHRASE_4            "four"
+#define PHRASE_5            "five"
+#define PHRASE_6            "six"
+#define PHRASE_7            "seven"
+#define PHRASE_8            "eight"
+#define PHRASE_9            "nine"
+#define PHRASE_10           "ten"
+
+#define PHRASE_I1           "fool"
+#define PHRASE_I2           "dork"
+#define PHRASE_I3           "idiot"
+#define PHRASE_I4           "dolt"
+#define PHRASE_I5           "butt ass"
+#define PHRASE_I6           "anal wartface"
+#define PHRASE_I7           "whore face"
+#define PHRASE_I8           "slut bag"
+
+#define PHRASE_HELLO        "hello world"
+
+const int ledPin =          10;
+const int buttonPin =       1;
+
+typedef struct boxStruct{
+    byte            debounceByte;                   // Button debounce byte
+    boolean         buttonPressed;                  // Button depressed flag
+    int             phraseSeed;                     // Random phrase seed 
+    boolean         playPhrase;                     // Play the phrase flag
+    byte            synthBuffer[SYNTH_SBUF_SIZE];   // Synth buffer
+} mysteryBox;
+
+mysteryBox          boxData;                        // Declare the box data as a global
+
+// Initialization
+void setup() {
+    // Initialize the mystery box
+    // No need to initialize the synthBuffer, it will be initialized before each phrase
+    boxData.debounceByte = DEBOUNCE_CLEAR;
+    boxData.buttonPressed = false;
+    boxData.phraseSeed = 0;
+    boxData.playPhrase = false;
+
+    // Set up the button input as pullup
+    pinMode(buttonPin, INPUT_PULLUP);
+
+    // Set up and intialize the LED output pin
+    pinMode(ledPin, OUTPUT);
+    digitalWrite(ledPin, LOW);
+    
+    // Initialize the UART
+    Serial.begin(115200);
+    
+    // Set up the random number generator
+    randomSeed(analogRead(0));
+
+    // Say something
+    synthPhrase(PHRASE_HELLO);
+
+    // Test the LED
+    digitalWrite(ledPin, HIGH);
+    delay(LED_DELAY_MS);
+    digitalWrite(ledPin, LOW);
+}
+
+// Polling loop
+void loop() {
+    // Start the loop with a delay
+    delay(LOOP_DELAY_MS);
+
+    // Process the button depress routine
+    serviceButton();
+
+    // Process the button debounce routine
+    serviceDebounce();
+
+    // Process the phrase routine
+    servicePhrase();
+}
+
+// Record button press event, normally the button pressed flag will be clear
+// This should be an interrupt but delay uses interrupts as well, polling will have to do..
+void serviceButton() {
+    if((boxData.buttonPressed != true) && (digitalRead(buttonPin) == LOW)) {
+        boxData.buttonPressed = true;
+    }
+}
+
+// Service the mystery box button debounce
+void serviceDebounce() {
+    // The button has been pressed, start the debounce sequence
+    if(boxData.buttonPressed) {
+        boxData.debounceByte = DEBOUNCE_START;
+        boxData.buttonPressed = false;
+    }
+    // No more bouncing, generate a phrase seed and set the phrase flag
+    else if(boxData.debounceByte == DEBOUNCE_COMPLETE) {
+        boxData.debounceByte = DEBOUNCE_CLEAR;
+        boxData.playPhrase = true;
+        boxData.phraseSeed = int(random(1,(PHRASE_COUNT+1)));
+    }
+    // Shift the debounce byte
+    else if((boxData.debounceByte != DEBOUNCE_CLEAR) && (boxData.debounceByte != DEBOUNCE_COMPLETE)) {
+        boxData.debounceByte = boxData.debounceByte << 1;
+    }
+}
+
+// Synth the selected phrase
+// Need to add a status check to avoid cutting off the speech synthesis process
+void synthPhrase(char *phrase) {
+
+    // Clear the synth buffer
+    SpeechSynthesis.buf_init(boxData.synthBuffer);  
+    
+    // Set the volume up
+    SpeechSynthesis.English(boxData.synthBuffer,SYNTH_CMD_VOLUME,SYNTH_SEL_VOLUME);
+
+    // Set the speech speed up
+    SpeechSynthesis.English(boxData.synthBuffer,SYNTH_CMD_SPEED,SYNTH_SEL_SPEED);
+
+    // Insert the phrase
+    SpeechSynthesis.English(boxData.synthBuffer,SYNTH_CMD_ENGLISH,phrase);
+
+    // Issue the speech process phrase
+    SpeechSynthesis.Espeaking(SYNTH_ECMD_START,SYNTH_VOICE_MALE3,SYNTH_TYPE_SAY,boxData.synthBuffer);
+    
+}
+
+// Service the phrase request if needed
+void servicePhrase() {
+    // ### Test phrase, count down from ten then insult ###
+    if(boxData.playPhrase) {
+        boxData.playPhrase = false;
+        digitalWrite(ledPin, HIGH);
+        delay(LED_DELAY_MS);
+        digitalWrite(ledPin, LOW);
+        coundDown();
+        synthPhrase(PHRASE_I5);
+    }
+}
+
+// Issue the countdown
+// Could be improved with a for loop?
+void coundDown() {
+    synthPhrase(PHRASE_10);
+    delay(COUNTDOWN_DELAY_MS);
+    synthPhrase(PHRASE_9);
+    delay(COUNTDOWN_DELAY_MS);
+    synthPhrase(PHRASE_8);
+    delay(COUNTDOWN_DELAY_MS);
+    synthPhrase(PHRASE_7);
+    delay(COUNTDOWN_DELAY_MS);
+    synthPhrase(PHRASE_6);
+    delay(COUNTDOWN_DELAY_MS);
+    synthPhrase(PHRASE_5);
+    delay(COUNTDOWN_DELAY_MS);
+    synthPhrase(PHRASE_4);
+    delay(COUNTDOWN_DELAY_MS);
+    synthPhrase(PHRASE_3);
+    delay(COUNTDOWN_DELAY_MS);
+    synthPhrase(PHRASE_2);
+    delay(COUNTDOWN_DELAY_MS);
+    synthPhrase(PHRASE_1);
+    delay(COUNTDOWN_DELAY_MS);
+    synthPhrase(PHRASE_0);
+    delay(COUNTDOWN_DELAY_MS);
+}
